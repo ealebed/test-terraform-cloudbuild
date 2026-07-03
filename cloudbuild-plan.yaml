@@ -24,36 +24,36 @@ steps:
 
   - name: hashicorp/terraform:${_TF_VERSION}
     id: terraform-plan
-    entrypoint: bash
+    entrypoint: sh
     args:
       - -c
       - |
         set -euo pipefail
 
-        GITHUB_TOKEN="$(cat /workspace/github_token.txt)"
-        git config --global url."https://x-access-token:${GITHUB_TOKEN}@github.com/".insteadOf "https://github.com/"
+        GITHUB_TOKEN="$$(cat /workspace/github_token.txt)"
+        git config --global url."https://x-access-token:$${GITHUB_TOKEN}@github.com/".insteadOf "https://github.com/"
 
         cd terraform
 
         ENV="${_ENVIRONMENT}"
-        VAR_FILE="${ENV}.tfvars"
+        VAR_FILE="$${ENV}.tfvars"
 
-        if [ ! -f "${VAR_FILE}" ]; then
-          echo "Missing ${VAR_FILE} for environment '${ENV}'" >&2
+        if [ ! -f "$${VAR_FILE}" ]; then
+          echo "Missing $${VAR_FILE} for environment '$${ENV}'" >&2
           exit 1
         fi
 
         terraform fmt -check -recursive
-        terraform init -input=false -backend-config="backend-config/${ENV}.hcl"
+        terraform init -input=false -backend-config="backend-config/$${ENV}.hcl"
 
-        if terraform workspace list | sed 's/^[* ]*//g' | grep -qx "${ENV}"; then
-          terraform workspace select "${ENV}"
+        if terraform workspace list | sed 's/^[* ]*//g' | grep -qx "$${ENV}"; then
+          terraform workspace select "$${ENV}"
         else
-          terraform workspace new "${ENV}"
+          terraform workspace new "$${ENV}"
         fi
 
         terraform validate
-        terraform plan -input=false -var-file="${VAR_FILE}" -out=tfplan
+        terraform plan -input=false -var-file="$${VAR_FILE}" -out=tfplan
 
 availableSecrets:
   secretManager:
