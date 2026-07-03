@@ -1,0 +1,65 @@
+# Runs on push/merge to master. Performs terraform apply.
+# Set _ENVIRONMENT per trigger (dev, stg, prd) to pick the matching *.tfvars file.
+substitutions:
+  _ENVIRONMENT: dev
+  _TF_VERSION: "1.14.0"
+
+options:
+  logging: CLOUD_LOGGING_ONLY
+
+steps:
+  - name: python:3.12
+    id: github-app-token
+    entrypoint: bash
+    secretEnv:
+      - GH_APP_ID
+      - GH_APP_INSTALLATION_ID
+      - GH_APP_PRIVATE_KEY
+    args:
+      - -c
+      - |
+        set -euo pipefail
+        pip install --quiet pyjwt cryptography requests
+        python scripts/github-app-token.py > /workspace/github_token.txt
+
+  - name: hashicorp/terraform:${_TF_VERSION}
+    id: terraform-apply
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        set -euo pipefail
+
+        GITHUB_TOKEN="$(cat /workspace/github_token.txt)"
+        git config --global url."https://x-access-token:${GITHUB_TOKEN}@github.com/".insteadOf "https://github.com/"
+
+        cd terraform
+
+        ENV="${_ENVIRONMENT}"
+        VAR_FILE="${ENV}.tfvars"
+
+        if [ ! -f "${VAR_FILE}" ]; then
+          echo "Missing ${VAR_FILE} for environment '${ENV}'" >&2
+          exit 1
+        fi
+
+        terraform fmt -check -recursive
+        terraform init -input=false -backend-config="backend-config/${ENV}.hcl"
+
+        if terraform workspace list | sed 's/^[* ]*//g' | grep -qx "${ENV}"; then
+          terraform workspace select "${ENV}"
+        else
+          terraform workspace new "${ENV}"
+        fi
+
+        terraform validate
+        terraform apply -input=false -auto-approve -var-file="${VAR_FILE}"
+
+availableSecrets:
+  secretManager:
+    - versionName: projects/$PROJECT_ID/secrets/GH_APP_ID/versions/latest
+      env: GH_APP_ID
+    - versionName: projects/$PROJECT_ID/secrets/GH_APP_INSTALLATION_ID/versions/latest
+      env: GH_APP_INSTALLATION_ID
+    - versionName: projects/$PROJECT_ID/secrets/GH_APP_PRIVATE_KEY/versions/latest
+      env: GH_APP_PRIVATE_KEY
