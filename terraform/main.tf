@@ -1,5 +1,5 @@
 module "example_bucket" {
-  source = "git::https://github.com/ealebed/gcp-terraform-modules.git//storage-bucket?ref=storage-bucket/v1.0.0"
+  source = "git::https://github.com/ealebed/gcp-terraform-modules.git?ref=storage-bucket/v1.0.0"
 
   project = var.project_id
   bucket = {

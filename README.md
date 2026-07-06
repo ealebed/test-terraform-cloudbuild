@@ -302,7 +302,7 @@ gcloud builds submit . \
 | `Missing dev.tfvars` | `_ENVIRONMENT` does not match a `*.tfvars` file in `terraform/` |
 | `jwt` / `invalid key` | PEM malformed in Secret Manager; re-upload full `.pem` file |
 | PR trigger does not fire | GitHub ↔ Cloud Build connection missing, or base branch pattern mismatch (`master` vs `main`) |
-| `terraform apply` changes on every plan | Pin `module_ref` to a release tag instead of `master` |
+| `terraform apply` changes on every plan | Pin module `ref` to a release tag instead of `master` |
 
 ---
 
