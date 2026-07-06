@@ -325,7 +325,7 @@ gcloud builds submit . \
 | `Error loading backend` | Wrong bucket in `backend-config/<env>.hcl`, or Cloud Build SA lacks `storage.objectAdmin` on state bucket |
 | `Missing dev.tfvars` | `_ENVIRONMENT` does not match a `*.tfvars` file in `terraform/` |
 | `jwt` / `invalid key` | PEM malformed in Secret Manager; re-upload full `.pem` file |
-| PR comment not posted | GitHub App lacks **Pull requests: Read and write**, or build was manual (`gcloud builds submit`) |
+| PR comment not posted | Do not set `_PR_NUMBER` in `cloudbuild-plan.yaml` substitutions (it overrides the trigger value). GitHub App needs **Pull requests: Read and write** |
 | PR trigger does not fire | Comment `/gcbrun` on the PR, or check GitHub ↔ Cloud Build connection / branch pattern (`master`) |
 | `terraform apply` changes on every plan | Pin module `ref` to a release tag instead of `master` |
 

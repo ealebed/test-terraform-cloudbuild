@@ -3,7 +3,6 @@
 substitutions:
   _ENVIRONMENT: dev
   _TF_VERSION: "1.14.0"
-  _PR_NUMBER: ""
 
 options:
   logging: CLOUD_LOGGING_ONLY
@@ -66,12 +65,14 @@ steps:
       - -c
       - |
         set -euo pipefail
-        if [ -z "${_PR_NUMBER}" ]; then
-          echo "Not a PR build (_PR_NUMBER unset); skipping plan comment"
+        if [ -z "${_PR_NUMBER}" ] && [ -z "${_HEAD_BRANCH}" ]; then
+          echo "Not a PR build; skipping plan comment"
           exit 0
         fi
         pip install --quiet requests
         PR_NUMBER="${_PR_NUMBER}" \
+        HEAD_BRANCH="${_HEAD_BRANCH}" \
+        BASE_BRANCH="${_BASE_BRANCH}" \
         REPO_FULL_NAME="$REPO_FULL_NAME" \
         ENVIRONMENT="${_ENVIRONMENT}" \
         python scripts/post-pr-comment.py
