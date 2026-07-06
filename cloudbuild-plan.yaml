@@ -54,6 +54,28 @@ steps:
 
         terraform validate
         terraform plan -input=false -var-file="$${VAR_FILE}" -out=tfplan
+        terraform show -no-color tfplan > /workspace/plan-output.txt
+
+  - name: python:3.12
+    id: post-pr-comment
+    waitFor:
+      - terraform-plan
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        set -euo pipefail
+        if [ -z "${_PR_NUMBER}" ] && [ -z "${_HEAD_BRANCH}" ]; then
+          echo "Not a PR build; skipping plan comment"
+          exit 0
+        fi
+        pip install --quiet requests
+        PR_NUMBER="${_PR_NUMBER}" \
+        HEAD_BRANCH="${_HEAD_BRANCH}" \
+        BASE_BRANCH="${_BASE_BRANCH}" \
+        REPO_FULL_NAME="$REPO_FULL_NAME" \
+        ENVIRONMENT="${_ENVIRONMENT}" \
+        python scripts/post-pr-comment.py
 
 availableSecrets:
   secretManager:
