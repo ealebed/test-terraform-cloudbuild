@@ -82,7 +82,6 @@ def main() -> None:
             f"```terraform\n{plan[: MAX_BODY - 200]}\n```\n\n</details>\n"
         )
 
-    token = TOKEN_FILE.read_text(encoding="utf-8").strip()
     url = f"https://api.github.com/repos/{REPO}/issues/{pr_number}/comments"
 
     response = requests.post(
