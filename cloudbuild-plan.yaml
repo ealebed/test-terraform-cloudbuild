@@ -3,6 +3,7 @@
 substitutions:
   _ENVIRONMENT: dev
   _TF_VERSION: "1.14.0"
+  _PR_NUMBER: ""
 
 options:
   logging: CLOUD_LOGGING_ONLY
@@ -54,6 +55,26 @@ steps:
 
         terraform validate
         terraform plan -input=false -var-file="$${VAR_FILE}" -out=tfplan
+        terraform show -no-color tfplan > /workspace/plan-output.txt
+
+  - name: python:3.12
+    id: post-pr-comment
+    waitFor:
+      - terraform-plan
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        set -euo pipefail
+        if [ -z "${_PR_NUMBER}" ]; then
+          echo "Not a PR build (_PR_NUMBER unset); skipping plan comment"
+          exit 0
+        fi
+        pip install --quiet requests
+        PR_NUMBER="${_PR_NUMBER}" \
+        REPO_FULL_NAME="$REPO_FULL_NAME" \
+        ENVIRONMENT="${_ENVIRONMENT}" \
+        python scripts/post-pr-comment.py
 
 availableSecrets:
   secretManager:

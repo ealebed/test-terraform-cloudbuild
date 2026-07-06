@@ -15,7 +15,8 @@ Terraform creates a Cloud Storage bucket using the private [`storage-bucket`](ht
 ├── cloudbuild-plan.yaml      # PR trigger → plan
 ├── cloudbuild-apply.yaml     # push to master → apply
 ├── scripts/
-│   └── github-app-token.py   # JWT → installation access token
+│   ├── github-app-token.py   # JWT → installation access token
+│   └── post-pr-comment.py    # posts plan output back to the PR
 └── terraform/
     ├── main.tf
     ├── variables.tf
@@ -102,7 +103,9 @@ This mirrors the GitHub Actions flow that uses `tibdex/github-app-token@v2`.
 
 1. GitHub → **Settings** → **Developer settings** → **GitHub Apps** → **New GitHub App**
 2. Name it e.g. `gcp-terraform-modules-reader`
-3. **Repository permissions** → **Contents**: Read-only
+3. **Repository permissions**
+   - **Contents**: Read-only (private Terraform modules)
+   - **Pull requests**: Read and write (post plan output as a PR comment)
 4. **Where can this app be installed?** → Only on this account/org
 5. Create the app and note the **App ID**
 6. Generate a **Private key** (downloads a `.pem` file)
@@ -193,17 +196,38 @@ Each trigger passes a single substitution: **`_ENVIRONMENT`** (`dev`, `stg`, or 
 ### Plan on pull request (dev example)
 
 ```bash
+export REPO="projects/ylebi-rnd/locations/us-central1/connections/ealebed-github/repositories/ealebed-test-terraform-cloudbuild"
+
 gcloud builds triggers create github \
+  --project=ylebi-rnd \
+  --region=us-central1 \
   --name="terraform-plan-pr-dev" \
   --description="Terraform plan (dev) on PRs to master" \
-  --repo-name="test-terraform-cloudbuild" \
-  --repo-owner="ealebed" \
+  --repository="$REPO" \
   --pull-request-pattern="^master$" \
+  --comment-control=COMMENTS_ENABLED \
   --build-config="cloudbuild-plan.yaml" \
   --substitutions="_ENVIRONMENT=dev"
 ```
 
 Repeat for `stg` / `prd` with `--name="terraform-plan-pr-stg"` and `--substitutions="_ENVIRONMENT=stg"`, etc.
+
+### Run plan on a pull request (`/gcbrun`)
+
+With `--comment-control=COMMENTS_ENABLED`, Cloud Build does **not** run on every PR push by default. To start (or re-run) the plan:
+
+1. Open a PR targeting `master`
+2. Comment **`/gcbrun`** on the PR
+3. Cloud Build runs `cloudbuild-plan.yaml`
+4. On success, the plan output is posted as a **collapsible PR comment**
+
+> Owners/collaborators can also trigger builds via `/gcbrun` after new commits. See [Cloud Build comment controls](https://cloud.google.com/build/docs/automating-builds/github/build-repos-from-github#comment_control).
+
+### Plan output on the PR
+
+After a successful plan, `scripts/post-pr-comment.py` posts `terraform show` output to the PR using the GitHub App token. Requires **Pull requests: Read and write** on the app (see section 2).
+
+Manual `gcloud builds submit` skips the comment step (`_PR_NUMBER` is unset).
 
 ### Apply on merge to master (dev example)
 
@@ -220,10 +244,10 @@ gcloud builds triggers create github \
 
 ### Trigger behaviour
 
-| Event | Trigger example | Pipeline | Terraform |
-|-------|-----------------|----------|-----------|
-| PR → `master` | `terraform-plan-pr-dev` | `cloudbuild-plan.yaml` | `plan -var-file=dev.tfvars` |
-| Push → `master` | `terraform-apply-dev` | `cloudbuild-apply.yaml` | `apply -var-file=dev.tfvars` |
+| Event | How to trigger | Pipeline | Result |
+|-------|----------------|----------|--------|
+| PR → `master` | Comment `/gcbrun` | `cloudbuild-plan.yaml` | Plan + PR comment |
+| Push → `master` | Automatic on merge | `cloudbuild-apply.yaml` | `apply -var-file=dev.tfvars` |
 
 > **Tip:** To plan all environments on every PR create one trigger per environment — each differs only by `_ENVIRONMENT`.
 
@@ -301,7 +325,8 @@ gcloud builds submit . \
 | `Error loading backend` | Wrong bucket in `backend-config/<env>.hcl`, or Cloud Build SA lacks `storage.objectAdmin` on state bucket |
 | `Missing dev.tfvars` | `_ENVIRONMENT` does not match a `*.tfvars` file in `terraform/` |
 | `jwt` / `invalid key` | PEM malformed in Secret Manager; re-upload full `.pem` file |
-| PR trigger does not fire | GitHub ↔ Cloud Build connection missing, or base branch pattern mismatch (`master` vs `main`) |
+| PR comment not posted | GitHub App lacks **Pull requests: Read and write**, or build was manual (`gcloud builds submit`) |
+| PR trigger does not fire | Comment `/gcbrun` on the PR, or check GitHub ↔ Cloud Build connection / branch pattern (`master`) |
 | `terraform apply` changes on every plan | Pin module `ref` to a release tag instead of `master` |
 
 ---
